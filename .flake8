@@ -1,0 +1,12 @@
+[flake8]
+max-line-length = 120
+# D100-D107: Missing docstrings, E203: Whitespace before ':', W503: Line break before binary operator
+extend-ignore = E203, W503, D100, D101, D102, D103, D104, D105, D106, D107
+exclude = .git,__pycache__,build,dist
+max-complexity = 10
+docstring-convention = google
+per-file-ignores =
+    # Allow imports in __init__.py
+    __init__.py:F401
+    # Allow undefined names in tests
+    tests/*:F821

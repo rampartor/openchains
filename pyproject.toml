@@ -3,7 +3,7 @@ name = "openchains"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "Your Name",email = "you@example.com"}
+    { name = "Your Name", email = "you@example.com" }
 ]
 readme = "README.md"
 requires-python = "<4.0,>=3.13"
@@ -24,6 +24,11 @@ build-backend = "poetry.core.masonry.api"
 pytest = "^8.3.4"
 behave = "^1.2.6"
 pytest-asyncio = "^0.25.3"
+pre-commit = "^3.7.0"
+black = "^24.4.0"
+isort = "^5.13.2"
+flake8 = "^7.1.0"
+mypy = "^1.11.0"
 
 [tool.poetry]
 package-mode = false
@@ -31,3 +36,19 @@ package-mode = false
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.black]
+line-length = 88
+target-version = ['py312']  # Use Python 3.12 until Black supports 3.13
+include = '\.pyi?'
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true

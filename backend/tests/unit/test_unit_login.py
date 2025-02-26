@@ -1,11 +1,12 @@
 # backend/tests/unit/test_unit_login.py
 import pytest
 from passlib.hash import bcrypt
+from starlette.testclient import TestClient
+
 from backend.app.main import User
 
 
-# Your existing test
-def test_login_invalid_credentials(client):
+def test_login_invalid_credentials(client: TestClient) -> None:
     resp = client.post("/login", json={"username": "foo", "password": "bar"})
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Invalid credentials"
@@ -13,7 +14,7 @@ def test_login_invalid_credentials(client):
 
 # New test for successful login
 @pytest.mark.asyncio
-async def test_login_successful(client):
+async def test_login_successful(client: TestClient) -> None:
     # Create a test user with known credentials
     test_username = "testuser"
     test_password = "testpass123"
@@ -21,16 +22,13 @@ async def test_login_successful(client):
 
     # Create user in database
     user = await User.create(
-        username=test_username,
-        password_hash=hashed_password,
-        role="customer"
+        username=test_username, password_hash=hashed_password, role="customer"
     )
 
     # Attempt login with valid credentials
-    resp = client.post("/login", json={
-        "username": test_username,
-        "password": test_password
-    })
+    resp = client.post(
+        "/login", json={"username": test_username, "password": test_password}
+    )
 
     # Verify response
     assert resp.status_code == 200

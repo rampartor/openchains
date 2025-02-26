@@ -1,13 +1,15 @@
+from typing import Any, Dict
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from tortoise import Tortoise, fields, models
-from tortoise.contrib.fastapi import register_tortoise
 from passlib.hash import bcrypt
+from pydantic import BaseModel
+from tortoise import fields, models
+from tortoise.contrib.fastapi import register_tortoise
 
 app = FastAPI()
 
-# If you're accessing from "http://localhost:5173" (Svelte's default dev server)
+# CORS middleware setup
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -26,7 +28,7 @@ register_tortoise(
     db_url="sqlite://db.sqlite3",  # Replace with Postgres for production
     modules={"models": ["backend.app.main"]},
     generate_schemas=True,
-    add_exception_handlers=True
+    add_exception_handlers=True,
 )
 
 
@@ -46,7 +48,7 @@ class LoginData(BaseModel):
 
 
 @app.post("/login")
-async def login(data: LoginData):
+async def login(data: LoginData) -> Dict[str, Any]:
     user = await User.get_or_none(username=data.username)
     if not user or not user.check_password(data.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")

@@ -1,27 +1,44 @@
 # backend/tests/conftest.py
+import asyncio
+from typing import Generator
+
 import pytest
-from starlette.testclient import TestClient
 from fastapi import FastAPI
-from backend.app.main import app
-from backend.tests.config import setup_test_app
+from starlette.testclient import TestClient
+from tortoise.contrib.fastapi import register_tortoise
 
 
 @pytest.fixture(scope="module")
-def test_app():
+def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
+    """Create an instance of the default event loop for each test case."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="module")
+def test_app() -> FastAPI:
     # Create a fresh app instance for testing
     app_for_testing = FastAPI()
 
     # Import your routes and models to the test app
-    from backend.app.main import login, User
+    from backend.app.main import login
+
     app_for_testing.post("/login")(login)
 
     # Set up the test app with test configuration
-    setup_test_app(app_for_testing)
+    register_tortoise(
+        app_for_testing,
+        db_url="sqlite://:memory:",
+        modules={"models": ["backend.app.main"]},
+        generate_schemas=True,
+        add_exception_handlers=True,
+    )
 
     return app_for_testing
 
 
 @pytest.fixture
-def client(test_app):
+def client(test_app: FastAPI) -> Generator[TestClient, None, None]:
     with TestClient(test_app) as client:
         yield client

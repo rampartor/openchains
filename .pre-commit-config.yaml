@@ -1,0 +1,65 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+    -   id: check-toml
+    -   id: check-json
+
+# Python linters
+-   repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+    -   id: isort
+        files: "backend/.*\\.py$"
+
+-   repo: https://github.com/psf/black
+    rev: 24.4.0
+    hooks:
+    -   id: black
+        files: "backend/.*\\.py$"
+
+-   repo: https://github.com/pycqa/flake8
+    rev: 7.1.0
+    hooks:
+    -   id: flake8
+        files: "backend/.*\\.py$"
+        additional_dependencies: [
+            'flake8-docstrings==1.7.0',
+        ]
+
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.0
+    hooks:
+    -   id: mypy
+        files: "backend/.*\\.py$"
+        additional_dependencies: [
+            'types-passlib',
+            'types-requests',
+        ]
+
+# JavaScript/Svelte linters
+-   repo: local
+    hooks:
+    -   id: prettier
+        name: prettier
+        entry: cd frontend && yarn prettier --write
+        language: system
+        files: "frontend/.*\\.(js|svelte|css|html)$"
+        types: [file]
+
+-   repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.1.0
+    hooks:
+    -   id: eslint
+        files: "frontend/.*\\.(js|svelte)$"
+        types: [file]
+        additional_dependencies:
+        -   'eslint@8.57.0'
+        -   'eslint-plugin-svelte@2.35.1'
+        -   '@stylistic/eslint-plugin@1.7.0'
+        -   'eslint-config-prettier@9.1.0'
+        args: ['--config=frontend/.eslintrc.cjs']
