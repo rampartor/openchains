@@ -1,10 +1,9 @@
-# backend/tests/config.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from tortoise.contrib.fastapi import register_tortoise
 
 
-def setup_test_app(app: FastAPI):
+def setup_test_app(app: FastAPI) -> None:
     # Set up CORS for testing
     app.add_middleware(
         CORSMiddleware,
