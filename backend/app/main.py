@@ -1,16 +1,19 @@
 # backend/app/main.py
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends, status, Form
-from fastapi.middleware.cors import CORSMiddleware
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any, AsyncGenerator, Dict, Optional, Union
+
+from fastapi import Depends, FastAPI, Form, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
-from typing import Optional, Annotated
-from datetime import datetime, timedelta, UTC
-from passlib.context import CryptContext
 from jose import jwt
-from tortoise.models import Model
-from tortoise.fields import CharField, IntField, DatetimeField, BooleanField
+from passlib.context import CryptContext
+from pydantic import BaseModel
+from tortoise import Tortoise
 from tortoise.contrib.fastapi import register_tortoise
+from tortoise.fields import BooleanField, CharField, DatetimeField, IntField
+from tortoise.models import Model
+
+from backend.tests.config import init_db, setup_prod_app
 
 
 # Define token models
@@ -28,7 +31,9 @@ class User(Model):
     id = IntField(primary_key=True)
     username = CharField(max_length=50, unique=True)
     password = CharField(max_length=100)
-    role = CharField(max_length=20, default="customer")  # Role can be "admin" or "customer"
+    role = CharField(
+        max_length=20, default="customer"
+    )  # Role can be "admin" or "customer"
     is_active = BooleanField(default=True)
     created_at = DatetimeField(auto_now_add=True)
 
@@ -49,59 +54,46 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 # Helper functions
-def verify_password(plain_password, hashed_password):
+def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def get_password_hash(password):
+def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
+def create_access_token(
+    data: Dict[str, Union[str, datetime]], expires_delta: Optional[timedelta] = None
+) -> str:
+    to_encode: Dict[str, Union[str, datetime]] = data.copy()
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=30)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, "your-secret-key", algorithm="HS256")
+    encoded_jwt: str = jwt.encode(to_encode, "your-secret-key", algorithm="HS256")
     return encoded_jwt
 
 
-# Create the lifespan context manager for app startup/shutdown events
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # No default user creation here anymore
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
+    # Initialize the database and perform migrations
+    await init_db()
     yield
     # Shutdown logic (if any) would go here
-    pass
+    await Tortoise.close_connections()
 
 
-# Create the FastAPI app with lifespan
 app = FastAPI(title="OpenChains", lifespan=lifespan)
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://frontend:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+setup_prod_app(app)
 
 
 # Login endpoint
 @app.post("/login", response_model=Token)
 async def login(
-        username: Annotated[str, Form()],
-        password: Annotated[str, Form()]
-):
-    """
-    OAuth2 compatible token login, get an access token for future requests
-    """
-    print(f"Login attempt for username: {username}")
-
-    # Find the user
+    username: Annotated[str, Form()], password: Annotated[str, Form()]
+) -> Dict[str, str]:
     user = await User.get_or_none(username=username)
 
     if not user:
@@ -112,7 +104,6 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Check password
     if not verify_password(password, user.password):
         print(f"Password verification failed for user: {username}")
         raise HTTPException(
@@ -120,8 +111,6 @@ async def login(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    print(f"Login successful for user: {username}")
 
     # Generate token
     access_token_expires = timedelta(minutes=30)
@@ -134,7 +123,9 @@ async def login(
 
 # Add OAuth2 compatible endpoint
 @app.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+) -> Dict[str, str]:
     user = await User.get_or_none(username=form_data.username)
 
     if not user or not verify_password(form_data.password, user.password):
@@ -146,7 +137,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     access_token_expires = timedelta(minutes=30)
     access_token = create_access_token(
-        data={"sub": user.username, "role": user.role}, expires_delta=access_token_expires
+        data={"sub": user.username, "role": user.role},
+        expires_delta=access_token_expires,
     )
 
     return {"access_token": access_token, "token_type": "bearer"}
@@ -154,13 +146,13 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 # Registration endpoint
 @app.post("/register")
-async def register_user(user: UserCreate):
+async def register_user(user: UserCreate) -> Dict[str, Union[str, int]]:
     # Check if username already exists
     existing_user = await User.get_or_none(username=user.username)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered"
+            detail="Username already registered",
         )
 
     # Hash the password
@@ -168,9 +160,7 @@ async def register_user(user: UserCreate):
 
     # Create new user
     user_obj = await User.create(
-        username=user.username,
-        password=hashed_password,
-        role=user.role
+        username=user.username, password=hashed_password, role=user.role
     )
 
     return {"message": "User created successfully", "user_id": user_obj.id}

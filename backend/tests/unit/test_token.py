@@ -16,16 +16,11 @@ async def test_token_endpoint_valid_credentials(client: TestClient) -> None:
 
     # Create user in database
     user = await User.create(
-        username=test_username,
-        password=hashed_password,
-        role="customer"
+        username=test_username, password=hashed_password, role="customer"
     )
 
     # OAuth2 form data format for token endpoint
-    form_data = {
-        "username": test_username,
-        "password": test_password
-    }
+    form_data = {"username": test_username, "password": test_password}
 
     # Attempt login with valid credentials
     resp = client.post("/token", data=form_data)
@@ -43,10 +38,7 @@ async def test_token_endpoint_valid_credentials(client: TestClient) -> None:
 async def test_token_endpoint_invalid_credentials(client: TestClient) -> None:
     """Test the /token endpoint with invalid credentials."""
     # OAuth2 form data format for token endpoint with invalid credentials
-    form_data = {
-        "username": "nonexistent_user",
-        "password": "wrong_password"
-    }
+    form_data = {"username": "nonexistent_user", "password": "wrong_password"}
 
     # Attempt login with invalid credentials
     resp = client.post("/token", data=form_data)

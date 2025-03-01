@@ -8,10 +8,7 @@ from backend.app.main import User
 
 def test_login_invalid_credentials(client: TestClient) -> None:
     # The login endpoint expects form data, not JSON
-    resp = client.post(
-        "/login",
-        data={"username": "foo", "password": "bar"}
-    )
+    resp = client.post("/login", data={"username": "foo", "password": "bar"})
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Incorrect username or password"
 
@@ -25,15 +22,12 @@ async def test_login_successful(client: TestClient) -> None:
 
     # Create user in database with role
     user = await User.create(
-        username=test_username,
-        password=hashed_password,
-        role="customer"
+        username=test_username, password=hashed_password, role="customer"
     )
 
     # Attempt login with valid credentials using form data
     resp = client.post(
-        "/login",
-        data={"username": test_username, "password": test_password}
+        "/login", data={"username": test_username, "password": test_password}
     )
 
     # Verify response - should return token info
@@ -54,15 +48,12 @@ async def test_login_admin_user(client: TestClient) -> None:
 
     # Create admin user in database
     admin = await User.create(
-        username=admin_username,
-        password=hashed_password,
-        role="admin"
+        username=admin_username, password=hashed_password, role="admin"
     )
 
     # Attempt login with valid credentials using form data
     resp = client.post(
-        "/login",
-        data={"username": admin_username, "password": admin_password}
+        "/login", data={"username": admin_username, "password": admin_password}
     )
 
     # Verify response - should return token info

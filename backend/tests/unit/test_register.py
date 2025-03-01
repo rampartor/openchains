@@ -1,6 +1,6 @@
 import pytest
-from starlette.testclient import TestClient
 from passlib.hash import bcrypt
+from starlette.testclient import TestClient
 
 from backend.app.main import User
 from backend.tests.unit.helpers import get_unique_username
@@ -17,7 +17,7 @@ async def test_register_endpoint_success(client: TestClient) -> None:
     user_data = {
         "username": test_username,
         "password": test_password,
-        "role": "customer"  # Default role
+        "role": "customer",  # Default role
     }
 
     # Attempt to register
@@ -49,16 +49,14 @@ async def test_register_endpoint_duplicate_username(client: TestClient) -> None:
 
     # Create user in database
     user = await User.create(
-        username=test_username,
-        password=hashed_password,
-        role="customer"
+        username=test_username, password=hashed_password, role="customer"
     )
 
     # Try to register with the same username
     user_data = {
         "username": test_username,
         "password": "different_password",
-        "role": "customer"
+        "role": "customer",
     }
 
     # Attempt to register
@@ -80,11 +78,7 @@ async def test_register_admin_user(client: TestClient) -> None:
     test_password = "admin_password123"
 
     # Registration data with admin role
-    user_data = {
-        "username": test_username,
-        "password": test_password,
-        "role": "admin"
-    }
+    user_data = {"username": test_username, "password": test_password, "role": "admin"}
 
     # Attempt to register
     resp = client.post("/register", json=user_data)

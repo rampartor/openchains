@@ -176,3 +176,5 @@ cython_debug/
 # JavaScript/Svelte linting
 node_modules/
 .eslintcache
+/db.sqlite3-shm
+/db.sqlite3-wal
