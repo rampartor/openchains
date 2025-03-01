@@ -7,12 +7,15 @@ from backend.app.main import User
 
 
 def test_login_invalid_credentials(client: TestClient) -> None:
-    resp = client.post("/login", json={"username": "foo", "password": "bar"})
+    # The login endpoint expects form data, not JSON
+    resp = client.post(
+        "/login",
+        data={"username": "foo", "password": "bar"}
+    )
     assert resp.status_code == 401
-    assert resp.json()["detail"] == "Invalid credentials"
+    assert resp.json()["detail"] == "Incorrect username or password"
 
 
-# New test for successful login
 @pytest.mark.asyncio
 async def test_login_successful(client: TestClient) -> None:
     # Create a test user with known credentials
@@ -20,19 +23,52 @@ async def test_login_successful(client: TestClient) -> None:
     test_password = "testpass123"
     hashed_password = bcrypt.hash(test_password)
 
-    # Create user in database
+    # Create user in database with role
     user = await User.create(
-        username=test_username, password_hash=hashed_password, role="customer"
+        username=test_username,
+        password=hashed_password,
+        role="customer"
     )
 
-    # Attempt login with valid credentials
+    # Attempt login with valid credentials using form data
     resp = client.post(
-        "/login", json={"username": test_username, "password": test_password}
+        "/login",
+        data={"username": test_username, "password": test_password}
     )
 
-    # Verify response
+    # Verify response - should return token info
     assert resp.status_code == 200
-    assert resp.json()["message"] == f"Hello, {test_username}!"
+    assert "access_token" in resp.json()
+    assert resp.json()["token_type"] == "bearer"
 
     # Clean up
     await user.delete()
+
+
+@pytest.mark.asyncio
+async def test_login_admin_user(client: TestClient) -> None:
+    # Create an admin user with known credentials
+    admin_username = "admin_test"
+    admin_password = "admin123"
+    hashed_password = bcrypt.hash(admin_password)
+
+    # Create admin user in database
+    admin = await User.create(
+        username=admin_username,
+        password=hashed_password,
+        role="admin"
+    )
+
+    # Attempt login with valid credentials using form data
+    resp = client.post(
+        "/login",
+        data={"username": admin_username, "password": admin_password}
+    )
+
+    # Verify response - should return token info
+    assert resp.status_code == 200
+    assert "access_token" in resp.json()
+    assert resp.json()["token_type"] == "bearer"
+
+    # Clean up
+    await admin.delete()

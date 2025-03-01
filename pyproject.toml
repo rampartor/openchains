@@ -20,6 +20,13 @@ dependencies = [
     "bcrypt (==3.2.2)",
 ]
 
+[tool.poetry]
+packages = [
+    { include = "backend" }
+]
+
+[tool.poetry.scripts]
+create-admin = "backend.scripts.create_admin:main_wrapper"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -34,9 +41,6 @@ black = "^24.4.0"
 isort = "^5.13.2"
 flake8 = "^7.1.0"
 mypy = "^1.11.0"
-
-[tool.poetry]
-package-mode = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"

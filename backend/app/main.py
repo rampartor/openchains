@@ -1,10 +1,11 @@
 # backend/app/main.py
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, status, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from typing import Optional, Annotated
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from passlib.context import CryptContext
 from jose import jwt
 from tortoise.models import Model
@@ -22,24 +23,12 @@ class TokenData(BaseModel):
     username: Optional[str] = None
 
 
-# Create the FastAPI app
-app = FastAPI(title="OpenChains")
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://frontend:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# Define your User model
+# Define your User model with a role field
 class User(Model):
-    id = IntField(pk=True)
+    id = IntField(primary_key=True)
     username = CharField(max_length=50, unique=True)
     password = CharField(max_length=100)
+    role = CharField(max_length=20, default="customer")  # Role can be "admin" or "customer"
     is_active = BooleanField(default=True)
     created_at = DatetimeField(auto_now_add=True)
 
@@ -51,6 +40,7 @@ class User(Model):
 class UserCreate(BaseModel):
     username: str
     password: str
+    role: str = "customer"
 
 
 # Password utilities
@@ -70,12 +60,34 @@ def get_password_hash(password):
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=30)
+        expire = datetime.now(UTC) + timedelta(minutes=30)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, "your-secret-key", algorithm="HS256")
     return encoded_jwt
+
+
+# Create the lifespan context manager for app startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # No default user creation here anymore
+    yield
+    # Shutdown logic (if any) would go here
+    pass
+
+
+# Create the FastAPI app with lifespan
+app = FastAPI(title="OpenChains", lifespan=lifespan)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://frontend:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # Login endpoint
@@ -114,7 +126,7 @@ async def login(
     # Generate token
     access_token_expires = timedelta(minutes=30)
     access_token = create_access_token(
-        data={"sub": username}, expires_delta=access_token_expires
+        data={"sub": username, "role": user.role}, expires_delta=access_token_expires
     )
 
     return {"access_token": access_token, "token_type": "bearer"}
@@ -134,7 +146,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     access_token_expires = timedelta(minutes=30)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.username, "role": user.role}, expires_delta=access_token_expires
     )
 
     return {"access_token": access_token, "token_type": "bearer"}
@@ -157,29 +169,11 @@ async def register_user(user: UserCreate):
     # Create new user
     user_obj = await User.create(
         username=user.username,
-        password=hashed_password
+        password=hashed_password,
+        role=user.role
     )
 
     return {"message": "User created successfully", "user_id": user_obj.id}
-
-
-# Create a test user on startup
-@app.on_event("startup")
-async def create_default_user():
-    try:
-        # Check if we have any users
-        user_count = await User.all().count()
-        if user_count == 0:
-            print("No users found. Creating default test user...")
-            # Create a test user
-            hashed_password = get_password_hash("testpassword")
-            await User.create(
-                username="testuser",
-                password=hashed_password,
-            )
-            print("Default user created: username=testuser, password=testpassword")
-    except Exception as e:
-        print(f"Error creating default user: {e}")
 
 
 # Register Tortoise ORM
