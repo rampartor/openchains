@@ -1,25 +1,30 @@
-import os
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Database settings
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgres://postgres:postgres@localhost:5432/openchains"
-    )
-
     # Application settings
     APP_NAME: str = "OpenChains"
-    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
+    DEBUG: bool = False
 
-    # JWT settings
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-for-development")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    # Database settings
+    DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/openchains"
+
+    # Security settings
+    SECRET_KEY: str = "your-default-secret-key-for-development"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    # Default admin user
+    DEFAULT_ADMIN_USERNAME: str = "admin"
+    DEFAULT_ADMIN_PASSWORD: str = "changeme"
+
+    # CORS settings
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://frontend:5173"]
 
     class Config:
         env_file = ".env"
-        case_sensitive = True
+        env_file_encoding = "utf-8"
+        case_sensitive = False
 
 
+# Create settings instance
 settings = Settings()

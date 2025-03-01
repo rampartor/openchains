@@ -10,9 +10,14 @@ requires-python = "<4.0,>=3.13"
 dependencies = [
     "fastapi (>=0.115.8,<0.116.0)",
     "uvicorn (>=0.34.0,<0.35.0)",
-    "passlib[bcrypt] (>=1.7.4,<2.0.0)",
+    "passlib (==1.7.4)",
     "httpx (>=0.28.1,<0.29.0)",
-    "tortoise-orm (>=0.24.1,<0.25.0)"
+    "tortoise-orm (>=0.24.1,<0.25.0)",
+    "python-multipart (>=0.0.20,<0.0.21)",
+    "asyncpg (>=0.30.0,<0.31.0)",
+    "cryptography (>=44.0.1,<45.0.0)",
+    "python-jose[cryptography] (==3.3.0)",
+    "bcrypt (==3.2.2)",
 ]
 
 
