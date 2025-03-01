@@ -4,7 +4,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.hash import bcrypt
 from pydantic import BaseModel
-from tortoise import fields, models
+from tortoise.models import Model
+from tortoise.fields import CharField, IntField
 from tortoise.contrib.fastapi import register_tortoise
 
 app = FastAPI()
@@ -32,14 +33,17 @@ register_tortoise(
 )
 
 
-class User(models.Model):
-    id = fields.IntField(primary_key=True)
-    username = fields.CharField(max_length=50, unique=True)
-    password_hash = fields.CharField(max_length=128)
-    role = fields.CharField(max_length=20, default="customer")
+class User(Model):
+    id = IntField(primary_key=True)
+    username = CharField(max_length=50, unique=True)
+    password_hash = CharField(max_length=128)
+    role = CharField(max_length=20, default="customer")
 
     def check_password(self, password: str) -> bool:
         return bcrypt.verify(password, self.password_hash)
+
+    class Meta:
+        table = "users"
 
 
 class LoginData(BaseModel):
