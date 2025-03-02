@@ -3,7 +3,7 @@ name = "openchains"
 version = "0.1.0"
 description = ""
 authors = [
-    { name = "Your Name", email = "you@example.com" }
+    { name = "Your Name", email = "you@example.com" },
 ]
 readme = "README.md"
 requires-python = "<4.0,>=3.13"
@@ -18,19 +18,20 @@ dependencies = [
     "cryptography (>=44.0.1,<45.0.0)",
     "python-jose[cryptography] (==3.3.0)",
     "bcrypt (==3.2.2)",
+    "aerich (>=0.8.2,<0.9.0)",
+    "tomlkit (>=0.13.2,<0.14.0)",
+    "tomli-w (>=1.2.0,<2.0.0)",
+    "typing-extensions (>=4.12.2,<5.0.0)",
 ]
 
 [tool.poetry]
 packages = [
-    { include = "backend" }
+    { include = "backend" },
 ]
 
 [tool.poetry.scripts]
 create-admin = "backend.scripts.create_admin:main_wrapper"
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+migrate = "backend.scripts.migrate:main_wrapper"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
@@ -48,8 +49,10 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.black]
 line-length = 88
-target-version = ['py312']  # Use Python 3.12 until Black supports 3.13
-include = '\.pyi?'
+target-version = [
+    "py312",
+]
+include = "\\.pyi?"
 
 [tool.isort]
 profile = "black"
@@ -61,3 +64,14 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
+
+[tool.aerich]
+tortoise_orm = "backend.app.db_config.TORTOISE_ORM"
+location = "./migrations"
+src_folder = "./."
+
+[build-system]
+requires = [
+    "poetry-core>=2.0.0,<3.0.0",
+]
+build-backend = "poetry.core.masonry.api"

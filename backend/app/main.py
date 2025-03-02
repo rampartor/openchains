@@ -13,6 +13,7 @@ from tortoise.contrib.fastapi import register_tortoise
 from tortoise.fields import BooleanField, CharField, DatetimeField, IntField
 from tortoise.models import Model
 
+from backend.app.db_config import TORTOISE_ORM
 from backend.tests.config import init_db, setup_prod_app
 
 
@@ -169,9 +170,8 @@ async def register_user(user: UserCreate) -> Dict[str, Union[str, int]]:
 # Register Tortoise ORM
 register_tortoise(
     app,
-    db_url="postgres://postgres:postgres@postgres:5432/openchains",
-    modules={"models": ["backend.app.main"]},
-    generate_schemas=True,
+    config=TORTOISE_ORM,
+    generate_schemas=False,  # Don't generate schemas - use Aerich
     add_exception_handlers=True,
 )
 
