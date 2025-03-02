@@ -9,7 +9,7 @@ TORTOISE_ORM = {
                 "user": "postgres",
                 "password": "postgres",
                 "database": "openchains",
-            }
+            },
         }
     },
     "apps": {

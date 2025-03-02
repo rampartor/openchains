@@ -1,13 +1,15 @@
-# backend/app/main.py
+import time
+import typing
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any, AsyncGenerator, Dict, Optional, Union
+from typing import Any, AsyncGenerator, Callable, Dict, Optional, Union
 
-from fastapi import Depends, FastAPI, Form, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 from tortoise import Tortoise
 from tortoise.contrib.fastapi import register_tortoise
 from tortoise.fields import BooleanField, CharField, DatetimeField, IntField
@@ -25,6 +27,12 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+
+# Define login request model
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 
 # Define your User model with a role field
@@ -47,6 +55,34 @@ class UserCreate(BaseModel):
     username: str
     password: str
     role: str = "customer"
+
+
+# Timing middleware
+class TimingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], typing.Awaitable[Response]],
+    ) -> Response:
+        start_time = time.time()
+        response = await call_next(request)
+        process_time = time.time() - start_time
+
+        # Format the time to be more readable (in milliseconds with 2 decimal places)
+        formatted_process_time = f"{process_time * 1000:.2f}ms"
+
+        # Add the timing header to the response
+        response.headers["X-Process-Time"] = formatted_process_time
+
+        # Log the request with timing information
+        path = request.url.path
+        method = request.method
+        status_code = response.status_code
+        print(
+            f"Request: {method} {path} - Status: {status_code} - Time: {formatted_process_time}"
+        )
+
+        return response
 
 
 # Password utilities
@@ -86,50 +122,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
 
 
 app = FastAPI(title="OpenChains", lifespan=lifespan)
-
+app.add_middleware(TimingMiddleware)
 setup_prod_app(app)
 
 
-# Login endpoint
-@app.post("/login", response_model=Token)
-async def login(
-    username: Annotated[str, Form()], password: Annotated[str, Form()]
-) -> Dict[str, str]:
-    user = await User.get_or_none(username=username)
+# OAuth2 token endpoint (unified authentication endpoint)
+@app.post("/token", response_model=Token)
+async def login_for_access_token(request: LoginRequest) -> Dict[str, str]:
+    user = await User.get_or_none(username=request.username)
 
     if not user:
-        print(f"User not found: {username}")
+        print(f"User not found: {request.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not verify_password(password, user.password):
-        print(f"Password verification failed for user: {username}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Generate token
-    access_token_expires = timedelta(minutes=30)
-    access_token = create_access_token(
-        data={"sub": username, "role": user.role}, expires_delta=access_token_expires
-    )
-
-    return {"access_token": access_token, "token_type": "bearer"}
-
-
-# Add OAuth2 compatible endpoint
-@app.post("/token", response_model=Token)
-async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-) -> Dict[str, str]:
-    user = await User.get_or_none(username=form_data.username)
-
-    if not user or not verify_password(form_data.password, user.password):
+    if not verify_password(request.password, user.password):
+        print(f"Password verification failed for user: {request.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

@@ -14,9 +14,6 @@ def test_app() -> FastAPI:
     app_for_testing = FastAPI()
 
     # Import your routes and models to the test app
-    from backend.app.main import login
-
-    app_for_testing.post("/login")(login)
     app_for_testing.post("/token")(login_for_access_token)
     app_for_testing.post("/register")(register_user)
 

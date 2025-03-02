@@ -1,3 +1,4 @@
+# backend/tests/unit/test_token.py
 import pytest
 from passlib.hash import bcrypt
 from starlette.testclient import TestClient
@@ -19,16 +20,15 @@ async def test_token_endpoint_valid_credentials(client: TestClient) -> None:
         username=test_username, password=hashed_password, role="customer"
     )
 
-    # OAuth2 form data format for token endpoint
-    form_data = {"username": test_username, "password": test_password}
-
-    # Attempt login with valid credentials
-    resp = client.post("/token", data=form_data)
+    # Send JSON request to token endpoint
+    response = client.post(
+        "/token", json={"username": test_username, "password": test_password}
+    )
 
     # Verify response
-    assert resp.status_code == 200
-    assert "access_token" in resp.json()
-    assert resp.json()["token_type"] == "bearer"
+    assert response.status_code == 200
+    assert "access_token" in response.json()
+    assert response.json()["token_type"] == "bearer"
 
     # Clean up
     await user.delete()
@@ -37,12 +37,11 @@ async def test_token_endpoint_valid_credentials(client: TestClient) -> None:
 @pytest.mark.asyncio
 async def test_token_endpoint_invalid_credentials(client: TestClient) -> None:
     """Test the /token endpoint with invalid credentials."""
-    # OAuth2 form data format for token endpoint with invalid credentials
-    form_data = {"username": "nonexistent_user", "password": "wrong_password"}
-
-    # Attempt login with invalid credentials
-    resp = client.post("/token", data=form_data)
+    # Send JSON request with invalid credentials
+    response = client.post(
+        "/token", json={"username": "nonexistent_user", "password": "wrong_password"}
+    )
 
     # Verify response
-    assert resp.status_code == 401
-    assert resp.json()["detail"] == "Incorrect username or password"
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Incorrect username or password"

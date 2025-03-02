@@ -1,7 +1,5 @@
-# backend/app/config.py
-import os
 import socket
-from typing import Dict, Any
+from typing import Any, Dict
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,7 +40,7 @@ TORTOISE_ORM: Dict[str, Any] = {
                 "user": "postgres",
                 "password": "postgres",
                 "database": "openchains",
-            }
+            },
         }
     },
     "apps": {
@@ -74,8 +72,8 @@ async def init_db() -> None:
         try:
             # Check if the role column already exists to avoid errors
             check_query = """
-            SELECT column_name 
-            FROM information_schema.columns 
+            SELECT column_name
+            FROM information_schema.columns
             WHERE table_name='users' AND column_name='role';
             """
             result = await conn.execute_query(check_query)
@@ -84,10 +82,12 @@ async def init_db() -> None:
                 print("Adding 'role' column to users table...")
 
                 # Add the column with a default value
-                await conn.execute_script("""
+                await conn.execute_script(
+                    """
                 ALTER TABLE users
                 ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'customer';
-                """)
+                """
+                )
 
                 print("Migration completed successfully.")
 

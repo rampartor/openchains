@@ -2,16 +2,16 @@
 import argparse
 import asyncio
 import os
-import sys
 import socket
+import sys
 from pathlib import Path
-from typing import Optional, Dict, Any, List, NoReturn
-
-# Add the parent directory to sys.path
-sys.path.append(str(Path(__file__).parent.parent.parent))
+from typing import NoReturn
 
 from passlib.context import CryptContext
 from tortoise import Tortoise
+
+# Add the parent directory to sys.path
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -24,8 +24,8 @@ def get_password_hash(password: str) -> str:
 def is_running_in_docker() -> bool:
     """Check if we're running inside a Docker container"""
     try:
-        with open('/proc/1/cgroup', 'rt') as f:
-            return 'docker' in f.read()
+        with open("/proc/1/cgroup", "rt") as f:
+            return "docker" in f.read()
     except FileNotFoundError:
         return False
 
@@ -109,11 +109,17 @@ async def main() -> None:
     """Main function to parse arguments and create admin user"""
     parser = argparse.ArgumentParser(description="Create an admin user")
     parser.add_argument(
-        "username", type=str, nargs="?", default="admin",
-        help="Admin username (default: admin)"
+        "username",
+        type=str,
+        nargs="?",
+        default="admin",
+        help="Admin username (default: admin)",
     )
     parser.add_argument(
-        "--password", "-p", type=str, default="adminpassword",
+        "--password",
+        "-p",
+        type=str,
+        default="adminpassword",
         help="Admin password (default: adminpassword)",
     )
     args = parser.parse_args()
@@ -122,10 +128,6 @@ async def main() -> None:
 
 
 def main_wrapper() -> NoReturn:
-    """
-    Wrapper function for the main async function.
-    This is used as an entry point for Poetry scripts.
-    """
     asyncio.run(main())
     sys.exit(0)
 

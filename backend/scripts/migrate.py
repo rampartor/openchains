@@ -1,15 +1,15 @@
 # backend/scripts/migrate.py
 import asyncio
 import os
-import sys
 import socket
+import sys
 from pathlib import Path
-from typing import NoReturn, List, Dict, Any, Optional
+from typing import Any, Dict, List, NoReturn, Optional
+
+from tortoise import Tortoise, connections
 
 # Add the parent directory to sys.path
 sys.path.append(str(Path(__file__).parent.parent.parent))
-
-from tortoise import Tortoise, connections
 
 
 class Migration:
@@ -18,7 +18,9 @@ class Migration:
         self.up_queries: List[str] = []
         self.down_queries: List[str] = []
 
-    def add_column(self, table: str, column: str, type_def: str, default: Optional[str] = None) -> None:
+    def add_column(
+        self, table: str, column: str, type_def: str, default: Optional[str] = None
+    ) -> None:
         """Add a column to a table"""
         query = f"ALTER TABLE {table} ADD COLUMN {column} {type_def}"
         if default is not None:
@@ -26,8 +28,9 @@ class Migration:
         self.up_queries.append(query)
         self.down_queries.append(f"ALTER TABLE {table} DROP COLUMN {column}")
 
-    def create_table(self, table: str, columns: Dict[str, str],
-                     primary_key: Optional[str] = None) -> None:
+    def create_table(
+        self, table: str, columns: Dict[str, str], primary_key: Optional[str] = None
+    ) -> None:
         """Create a table with columns"""
         cols = [f"{name} {type_def}" for name, type_def in columns.items()]
         if primary_key:
@@ -80,12 +83,11 @@ async def run_migration(migration: Migration, direction: str = "up") -> None:
         if direction == "up":
             await conn.execute_query(
                 "INSERT INTO migrations (name, applied_at) VALUES ($1, NOW())",
-                [migration.name]
+                [migration.name],
             )
         else:
             await conn.execute_query(
-                "DELETE FROM migrations WHERE name = $1",
-                [migration.name]
+                "DELETE FROM migrations WHERE name = $1", [migration.name]
             )
 
         print(f"Migration '{migration.name}' {direction} completed successfully.")
@@ -98,22 +100,23 @@ async def run_migration(migration: Migration, direction: str = "up") -> None:
         await Tortoise.close_connections()
 
 
-async def ensure_migrations_table(conn) -> None:
+async def ensure_migrations_table(conn: Any) -> None:
     """Ensure migrations table exists"""
-    await conn.execute_script("""
+    await conn.execute_script(
+        """
     CREATE TABLE IF NOT EXISTS migrations (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
         applied_at TIMESTAMP NOT NULL
     )
-    """)
+    """
+    )
 
 
-async def migration_exists(conn, name: str) -> bool:
+async def migration_exists(conn: Any, name: str) -> Any:
     """Check if migration has been applied"""
     result = await conn.execute_query(
-        "SELECT COUNT(*) FROM migrations WHERE name = $1",
-        [name]
+        "SELECT COUNT(*) FROM migrations WHERE name = $1", [name]
     )
     return result[1][0][0] > 0
 
@@ -148,7 +151,7 @@ def create_role_field_migration() -> Migration:
         table="users",
         column="role",
         type_def="VARCHAR(20) NOT NULL",
-        default="'customer'"
+        default="'customer'",
     )
     return migration
 
@@ -157,6 +160,7 @@ async def main() -> None:
     """Run the migrations"""
     # Parse arguments
     import argparse
+
     parser = argparse.ArgumentParser(description="Database migrations")
     parser.add_argument("--down", action="store_true", help="Roll back migrations")
     args = parser.parse_args()
