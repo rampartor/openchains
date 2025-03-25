@@ -16,14 +16,10 @@ async def test_token_endpoint_valid_credentials(client: TestClient) -> None:
     hashed_password = bcrypt.hash(test_password)
 
     # Create user in database
-    user = await User.create(
-        username=test_username, password=hashed_password, role="customer"
-    )
+    user = await User.create(username=test_username, password=hashed_password, role="customer")
 
     # Send JSON request to token endpoint
-    response = client.post(
-        "/token", json={"username": test_username, "password": test_password}
-    )
+    response = client.post("/token", json={"username": test_username, "password": test_password})
 
     # Verify response
     assert response.status_code == 200
@@ -38,9 +34,7 @@ async def test_token_endpoint_valid_credentials(client: TestClient) -> None:
 async def test_token_endpoint_invalid_credentials(client: TestClient) -> None:
     """Test the /token endpoint with invalid credentials."""
     # Send JSON request with invalid credentials
-    response = client.post(
-        "/token", json={"username": "nonexistent_user", "password": "wrong_password"}
-    )
+    response = client.post("/token", json={"username": "nonexistent_user", "password": "wrong_password"})
 
     # Verify response
     assert response.status_code == 401

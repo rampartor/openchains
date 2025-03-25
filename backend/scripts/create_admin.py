@@ -92,9 +92,7 @@ async def create_admin(username: str, password: str) -> None:
         hashed_password = get_password_hash(password)
 
         # Create the admin user
-        user = await User.create(
-            username=username, password=hashed_password, role="admin", is_active=True
-        )
+        user = await User.create(username=username, password=hashed_password, role="admin", is_active=True)
         print(f"Admin user {username} created successfully with ID {user.id}.")
 
     except Exception as e:

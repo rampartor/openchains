@@ -1,10 +1,12 @@
+import random
 import time
 import typing
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any, AsyncGenerator, Callable, Dict, Optional, Union
 
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from passlib.context import CryptContext
@@ -12,7 +14,7 @@ from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from tortoise import Tortoise
 from tortoise.contrib.fastapi import register_tortoise
-from tortoise.fields import BooleanField, CharField, DatetimeField, IntField
+from tortoise.fields import BooleanField, CharField, DatetimeField, DecimalField, IntField
 from tortoise.models import Model
 
 from backend.app.db_config import TORTOISE_ORM
@@ -40,14 +42,25 @@ class User(Model):
     id = IntField(primary_key=True)
     username = CharField(max_length=50, unique=True)
     password = CharField(max_length=100)
-    role = CharField(
-        max_length=20, default="customer"
-    )  # Role can be "admin" or "customer"
+    role = CharField(max_length=20, default="customer")  # Role can be "admin" or "customer"
     is_active = BooleanField(default=True)
+    card_number = CharField(max_length=16, null=True)
     created_at = DatetimeField(auto_now_add=True)
 
     class Meta:
         table = "users"
+
+
+# Define Slip model
+class Slip(Model):
+    id = IntField(primary_key=True)
+    card_number = CharField(max_length=16)
+    amount = DecimalField(max_digits=10, decimal_places=2)
+    created_at = DatetimeField(auto_now_add=True)
+    updated_at = DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "slips"
 
 
 # Define input models
@@ -55,6 +68,23 @@ class UserCreate(BaseModel):
     username: str
     password: str
     role: str = "customer"
+    card_number: Optional[str] = None
+
+
+class SlipCreate(BaseModel):
+    card_number: str
+    amount: float
+
+
+class GeneratorRequest(BaseModel):
+    user_count: int
+    slip_count: int
+
+
+class GeneratorResponse(BaseModel):
+    users_created: int
+    slips_created: int
+    message: str
 
 
 # Timing middleware
@@ -78,9 +108,7 @@ class TimingMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = request.method
         status_code = response.status_code
-        print(
-            f"Request: {method} {path} - Status: {status_code} - Time: {formatted_process_time}"
-        )
+        print(f"Request: {method} {path} - Status: {status_code} - Time: {formatted_process_time}")
 
         return response
 
@@ -99,9 +127,7 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_access_token(
-    data: Dict[str, Union[str, datetime]], expires_delta: Optional[timedelta] = None
-) -> str:
+def create_access_token(data: Dict[str, Union[str, datetime]], expires_delta: Optional[timedelta] = None) -> str:
     to_encode: Dict[str, Union[str, datetime]] = data.copy()
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
@@ -110,6 +136,37 @@ def create_access_token(
     to_encode.update({"exp": expire})
     encoded_jwt: str = jwt.encode(to_encode, "your-secret-key", algorithm="HS256")
     return encoded_jwt
+
+
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(token, "your-secret-key", algorithms=["HS256"])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except Exception:
+        raise credentials_exception
+
+    user = await User.get_or_none(username=username)
+    if user is None:
+        raise credentials_exception
+
+    return user  # type: ignore
+
+
+async def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+    return current_user
 
 
 @asynccontextmanager
@@ -122,6 +179,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
 
 
 app = FastAPI(title="OpenChains", lifespan=lifespan)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.add_middleware(TimingMiddleware)
 setup_prod_app(app)
 
@@ -171,11 +238,109 @@ async def register_user(user: UserCreate) -> Dict[str, Union[str, int]]:
     hashed_password = get_password_hash(user.password)
 
     # Create new user
-    user_obj = await User.create(
-        username=user.username, password=hashed_password, role=user.role
-    )
+    user_obj = await User.create(username=user.username, password=hashed_password, role=user.role)
 
     return {"message": "User created successfully", "user_id": user_obj.id}
+
+
+# Endpoint to get current user info
+@app.get("/me")
+async def get_me(current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
+    return {
+        "username": current_user.username,
+        "role": current_user.role,
+        "is_admin": current_user.role == "admin",
+    }
+
+
+# Generator endpoint for creating random users and slips (admin only)
+@app.post("/generator", response_model=GeneratorResponse)
+async def generate_data(request: GeneratorRequest, admin: User = Depends(get_admin_user)) -> Dict[str, Union[int, str]]:
+    # Validate input
+    if request.user_count <= 0 or request.slip_count <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User and slip counts must be positive integers",
+        )
+
+    if request.user_count > 1000 or request.slip_count > 5000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum allowed: 1000 users and 5000 slips",
+        )
+
+    # Generate and create random users
+    users_created = 0
+    card_numbers = []
+
+    for i in range(request.user_count):
+        username = f"user_{random.randint(10000, 99999)}"
+        password = f"pass_{random.randint(10000, 99999)}"
+        card_number = "".join([str(random.randint(0, 9)) for _ in range(16)])
+
+        # Check if username already exists
+        existing_user = await User.get_or_none(username=username)
+        if existing_user:
+            continue
+
+        # Hash the password
+        hashed_password = get_password_hash(password)
+
+        # Create user
+        await User.create(
+            username=username,
+            password=hashed_password,
+            role="customer",
+            card_number=card_number,
+        )
+
+        card_numbers.append(card_number)
+        users_created += 1
+
+    # Generate and create random slips
+    slips_created = 0
+
+    for _ in range(request.slip_count):
+        if not card_numbers:  # If no users were created, use random card numbers
+            card_number = "".join([str(random.randint(0, 9)) for _ in range(16)])
+        else:
+            card_number = random.choice(card_numbers)
+
+        amount = round(random.uniform(10.0, 1000.0), 2)
+
+        # Create slip
+        await Slip.create(card_number=card_number, amount=amount)
+
+        slips_created += 1
+
+    return {
+        "users_created": users_created,
+        "slips_created": slips_created,
+        "message": f"Successfully created {users_created} users and {slips_created} slips",
+    }
+
+
+# Create admin user endpoint (for development)
+@app.post("/create-admin")
+async def create_admin(admin: UserCreate) -> Dict[str, Union[str, int]]:
+    # Check if username already exists
+    existing_user = await User.get_or_none(username=admin.username)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already registered",
+        )
+
+    # Set role to admin
+    admin.role = "admin"
+
+    # Hash the password
+    hashed_password = get_password_hash(admin.password)
+
+    # Create admin user
+    user_obj = await User.create(username=admin.username, password=hashed_password, role=admin.role)
+
+    return {"message": "Admin user created successfully", "user_id": user_obj.id}
 
 
 # Register Tortoise ORM

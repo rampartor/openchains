@@ -14,11 +14,7 @@ def before_all(context: Any) -> None:
         context.loop = asyncio.get_event_loop()
 
     # Initialize Tortoise with in-memory SQLite for testing
-    context.loop.run_until_complete(
-        Tortoise.init(
-            db_url="sqlite://:memory:", modules={"models": ["backend.app.main"]}
-        )
-    )
+    context.loop.run_until_complete(Tortoise.init(db_url="sqlite://:memory:", modules={"models": ["backend.app.main"]}))
     # Generate schemas
     context.loop.run_until_complete(Tortoise.generate_schemas())
 

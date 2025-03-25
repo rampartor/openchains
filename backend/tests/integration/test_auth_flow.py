@@ -28,15 +28,10 @@ async def test_user() -> AsyncGenerator[Dict[str, str], None]:
         )
 
         # If user already exists, that's okay
-        if (
-            register_response.status_code == 400
-            and "already registered" in register_response.text
-        ):
+        if register_response.status_code == 400 and "already registered" in register_response.text:
             pass
         else:
-            assert (
-                register_response.status_code == 200
-            ), f"Failed to create test user: {register_response.text}"
+            assert register_response.status_code == 200, f"Failed to create test user: {register_response.text}"
 
     # Return user info
     yield {"username": TEST_USERNAME, "password": TEST_PASSWORD}
@@ -55,9 +50,7 @@ async def test_authentication_flow(test_user: Dict[str, str]) -> None:
             timeout=10.0,
         )
 
-        assert (
-            token_response.status_code == 200
-        ), f"Authentication failed: {token_response.text}"
+        assert token_response.status_code == 200, f"Authentication failed: {token_response.text}"
         token_data = token_response.json()
         assert "access_token" in token_data, "Token not found in response"
         assert token_data["token_type"] == "bearer", "Incorrect token type"
@@ -87,14 +80,10 @@ async def test_invalid_login() -> None:
             timeout=10.0,
         )
 
-        assert (
-            response.status_code == 401
-        ), "Expected 401 Unauthorized for invalid login"
+        assert response.status_code == 401, "Expected 401 Unauthorized for invalid login"
         error_data = response.json()
         assert "detail" in error_data, "Error detail not found in response"
-        assert (
-            error_data["detail"] == "Incorrect username or password"
-        ), "Unexpected error message"
+        assert error_data["detail"] == "Incorrect username or password", "Unexpected error message"
 
 
 @pytest.mark.asyncio
@@ -110,9 +99,7 @@ async def test_api_response_time() -> None:
         end_time = time.time()
 
         response_time = end_time - start_time
-        assert (
-            response_time < 2.0
-        ), f"API response too slow: {response_time:.2f} seconds"
+        assert response_time < 2.0, f"API response too slow: {response_time:.2f} seconds"
 
         # Check if timing header is present
         assert "X-Process-Time" in response.headers, "Timing header not found"

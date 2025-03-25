@@ -1,41 +1,34 @@
 <script>
+  import Nav from './Nav.svelte';
+  import { auth, login, fetchUserInfo } from './auth.js';
+
   let username = '';
   let password = '';
   let message = '';
   let loading = false;
 
+  // Check if user is already logged in
+  fetchUserInfo();
+
   async function handleLogin() {
     loading = true;
     message = '';
 
-    try {
-      const response = await fetch('http://localhost:8000/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
+    const result = await login(username, password);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        message = 'Login successful!';
-        // Store the token in localStorage for future requests
-        if (data.access_token) {
-          localStorage.setItem('token', data.access_token);
-        }
-      } else {
-        message = data.detail || 'Invalid login attempt';
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      message = 'Network error or server unreachable';
-    } finally {
-      loading = false;
+    if (result.success) {
+      message = 'Login successful!';
+    } else {
+      message = result.error;
     }
+
+    loading = false;
   }
 </script>
 
-<main>
+<div>
+  <Nav />
+  <main>
   <h1>Login</h1>
   <form on:submit|preventDefault={handleLogin}>
     <div class="form-group">
@@ -58,11 +51,12 @@
       {message}
     </div>
   {/if}
-</main>
+  </main>
+</div>
 
 <style>
   main {
-    margin: 2rem auto;
+    margin: 0 auto;
     max-width: 400px;
     padding: 2rem;
     border-radius: 8px;

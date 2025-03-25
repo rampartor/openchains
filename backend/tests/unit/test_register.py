@@ -48,9 +48,7 @@ async def test_register_endpoint_duplicate_username(client: TestClient) -> None:
     hashed_password = bcrypt.hash(test_password)
 
     # Create user in database
-    user = await User.create(
-        username=test_username, password=hashed_password, role="customer"
-    )
+    user = await User.create(username=test_username, password=hashed_password, role="customer")
 
     # Try to register with the same username
     user_data = {
