@@ -12,12 +12,22 @@ function isAuthenticated() {
 // This is just for routing - actual authorization happens on the backend
 function isAdmin() {
   try {
+    // Check for auth info in localStorage
+    const userDataStr = localStorage.getItem('userData');
+    if (userDataStr) {
+      try {
+        const userData = JSON.parse(userDataStr);
+        return userData.role === 'admin';
+      } catch (err) {
+        console.error('Error parsing user data:', err);
+      }
+    }
+
+    // Legacy check for JWT payload (may not be accurate)
     const token = localStorage.getItem('token');
     if (!token) return false;
 
-    // Decode token payload
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.role === 'admin';
+    return false; // Default to false for security if we can't determine properly
   } catch (e) {
     console.error('Error checking admin status', e);
     return false;

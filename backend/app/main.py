@@ -1,4 +1,4 @@
-import random
+# Import required modules
 import time
 import typing
 from contextlib import asynccontextmanager
@@ -67,35 +67,24 @@ class Slip(Model):
 class UserCreate(BaseModel):
     username: str
     password: str
-    role: str = "customer"
-    card_number: Optional[str] = None
+    role: Optional[str] = "customer"
 
 
-class SlipCreate(BaseModel):
-    card_number: str
-    amount: float
+class AdminCreate(BaseModel):
+    username: str
+    password: str
 
 
-class GeneratorRequest(BaseModel):
-    user_count: int
-    slip_count: int
-
-
-class GeneratorResponse(BaseModel):
-    users_created: int
-    slips_created: int
-    message: str
-
-
-# Timing middleware
+# Define middleware for timing requests
 class TimingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(
-        self,
-        request: Request,
-        call_next: Callable[[Request], typing.Awaitable[Response]],
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable[[Request], typing.Awaitable[Response]]) -> Response:
+        # Record the start time
         start_time = time.time()
+
+        # Process the request
         response = await call_next(request)
+
+        # Calculate the processing time
         process_time = time.time() - start_time
 
         # Format the time to be more readable (in milliseconds with 2 decimal places)
@@ -197,35 +186,35 @@ setup_prod_app(app)
 @app.post("/token", response_model=Token)
 async def login_for_access_token(request: LoginRequest) -> Dict[str, str]:
     user = await User.get_or_none(username=request.username)
-
-    if not user:
-        print(f"User not found: {request.username}")
+    if not user or not verify_password(request.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not verify_password(request.password, user.password):
-        print(f"Password verification failed for user: {request.username}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    access_token_expires = timedelta(minutes=30)
+    # Generate token
     access_token = create_access_token(
-        data={"sub": user.username, "role": user.role},
-        expires_delta=access_token_expires,
+        data={"sub": user.username},
+        expires_delta=timedelta(minutes=120),  # 2 hours
     )
 
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-# Registration endpoint
-@app.post("/register")
-async def register_user(user: UserCreate) -> Dict[str, Union[str, int]]:
+# Get your own details
+@app.get("/users/me", response_model=Dict[str, Any])
+async def read_users_me(current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
+    return {
+        "username": current_user.username,
+        "role": current_user.role,
+        "is_active": current_user.is_active,
+    }
+
+
+# Register endpoint (only for customers by default)
+@app.post("/register", status_code=status.HTTP_201_CREATED)
+async def register(user: UserCreate) -> Dict[str, str]:
     # Check if username already exists
     existing_user = await User.get_or_none(username=user.username)
     if existing_user:
@@ -237,93 +226,16 @@ async def register_user(user: UserCreate) -> Dict[str, Union[str, int]]:
     # Hash the password
     hashed_password = get_password_hash(user.password)
 
-    # Create new user
+    # Create user with "customer" role by default
     user_obj = await User.create(username=user.username, password=hashed_password, role=user.role)
 
-    return {"message": "User created successfully", "user_id": user_obj.id}
+    return {"message": "User registered successfully", "user_id": user_obj.id}
 
 
-# Endpoint to get current user info
-@app.get("/me")
-async def get_me(current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
-    return {
-        "username": current_user.username,
-        "role": current_user.role,
-        "is_admin": current_user.role == "admin",
-    }
-
-
-# Generator endpoint for creating random users and slips (admin only)
-@app.post("/generator", response_model=GeneratorResponse)
-async def generate_data(request: GeneratorRequest, admin: User = Depends(get_admin_user)) -> Dict[str, Union[int, str]]:
-    # Validate input
-    if request.user_count <= 0 or request.slip_count <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User and slip counts must be positive integers",
-        )
-
-    if request.user_count > 1000 or request.slip_count > 5000:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum allowed: 1000 users and 5000 slips",
-        )
-
-    # Generate and create random users
-    users_created = 0
-    card_numbers = []
-
-    for i in range(request.user_count):
-        username = f"user_{random.randint(10000, 99999)}"
-        password = f"pass_{random.randint(10000, 99999)}"
-        card_number = "".join([str(random.randint(0, 9)) for _ in range(16)])
-
-        # Check if username already exists
-        existing_user = await User.get_or_none(username=username)
-        if existing_user:
-            continue
-
-        # Hash the password
-        hashed_password = get_password_hash(password)
-
-        # Create user
-        await User.create(
-            username=username,
-            password=hashed_password,
-            role="customer",
-            card_number=card_number,
-        )
-
-        card_numbers.append(card_number)
-        users_created += 1
-
-    # Generate and create random slips
-    slips_created = 0
-
-    for _ in range(request.slip_count):
-        if not card_numbers:  # If no users were created, use random card numbers
-            card_number = "".join([str(random.randint(0, 9)) for _ in range(16)])
-        else:
-            card_number = random.choice(card_numbers)
-
-        amount = round(random.uniform(10.0, 1000.0), 2)
-
-        # Create slip
-        await Slip.create(card_number=card_number, amount=amount)
-
-        slips_created += 1
-
-    return {
-        "users_created": users_created,
-        "slips_created": slips_created,
-        "message": f"Successfully created {users_created} users and {slips_created} slips",
-    }
-
-
-# Create admin user endpoint (for development)
-@app.post("/create-admin")
-async def create_admin(admin: UserCreate) -> Dict[str, Union[str, int]]:
-    # Check if username already exists
+# Create admin user (for testing/initialization only)
+@app.post("/create-admin", status_code=status.HTTP_201_CREATED)
+async def create_admin(admin: AdminCreate) -> Dict[str, Any]:
+    # Check if admin already exists
     existing_user = await User.get_or_none(username=admin.username)
     if existing_user:
         raise HTTPException(
@@ -341,6 +253,15 @@ async def create_admin(admin: UserCreate) -> Dict[str, Union[str, int]]:
     user_obj = await User.create(username=admin.username, password=hashed_password, role=admin.role)
 
     return {"message": "Admin user created successfully", "user_id": user_obj.id}
+
+
+@app.get("/generator/stats")
+async def get_generator_stats(admin: User = Depends(get_admin_user)) -> Dict[str, int]:
+    """Returns statistics about generated test data including user and slip counts."""
+    user_count = await User.all().count()
+    slip_count = await Slip.all().count()
+
+    return {"user_count": user_count, "slip_count": slip_count}
 
 
 # Register Tortoise ORM

@@ -4,7 +4,7 @@ TORTOISE_ORM = {
         "default": {
             "engine": "tortoise.backends.asyncpg",
             "credentials": {
-                "host": "localhost",  # Use "postgres" in Docker
+                "host": "postgres",  # Use "postgres" for Docker, "localhost" for local dev
                 "port": "5432",
                 "user": "postgres",
                 "password": "postgres",

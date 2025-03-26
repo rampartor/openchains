@@ -4,7 +4,10 @@
   import { onMount } from 'svelte';
 
   let userCount = 10;
+  let existingUserCount = 0;
   let slipsGenerated = 0;
+  let existingSlipsCount = 0;
+  let slipsPerUser = 1;
   let message = '';
   let loading = false;
   let users = [];
@@ -16,11 +19,36 @@
   let foundUser = null;
   let showUsersList = false;
 
-  onMount(() => {
+  onMount(async () => {
     // Verify user is logged in and is admin
     fetchUserInfo();
     calculatePossibleChains();
+    await fetchStats();
   });
+
+  async function fetchStats() {
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch('http://localhost:8000/generator/stats', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        existingUserCount = data.user_count || 0;
+        existingSlipsCount = data.slip_count || 0;
+        slipsGenerated = existingSlipsCount;
+      } else {
+        console.error('Failed to fetch stats');
+      }
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+    }
+  };
 
   function calculatePossibleChains() {
     if (userCount >= firstCircleStep) {
@@ -86,7 +114,8 @@
         body: JSON.stringify({
           min_amount: 10.00,
           max_amount: 5000.00,
-          bonus_percentage: bonusPercentage
+          bonus_percentage: bonusPercentage,
+          slips_per_user: slipsPerUser
         }),
       });
 
@@ -94,7 +123,7 @@
 
       if (response.ok) {
         slipsGenerated += data.slips_created;
-        message = `Successfully generated ${data.slips_created} slips. Total slips: ${slipsGenerated}`;
+        message = `Generated ${data.slips_created} slips. Total: ${slipsGenerated}`;
         users = data.users || users;
       } else {
         error = data.detail || 'Error generating slips';
@@ -149,6 +178,44 @@
     }
   }
 
+  async function cleanupData() {
+    loading = true;
+    message = '';
+    error = null;
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch('http://localhost:8000/generator/cleanup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        message = `Database cleaned up. Removed ${data.users_removed || 0} users and ${data.slips_removed || 0} slips.`;
+        users = [];
+        await fetchStats();
+      } else {
+        error = data.detail || 'Error cleaning up data';
+
+        // If unauthorized, redirect to login
+        if (response.status === 401 || response.status === 403) {
+          window.location.href = '/';
+        }
+      }
+    } catch (err) {
+      console.error('Generator error:', err);
+      error = 'Network error or server unreachable';
+    } finally {
+      loading = false;
+    }
+  }
+
   function toggleUsersList() {
     showUsersList = !showUsersList;
   }
@@ -173,9 +240,25 @@
     <h1>Chain Generator</h1>
     <p class="description">Test algorithm for random number generation in selected ranges</p>
 
+    <div class="stats-panel">
+      <div class="stats-item">
+        <div class="stats-label">Existing Users</div>
+        <div class="stats-value">{existingUserCount}</div>
+      </div>
+      <div class="stats-item">
+        <div class="stats-label">Existing Slips</div>
+        <div class="stats-value">{existingSlipsCount}</div>
+      </div>
+      <button on:click={cleanupData}
+              disabled={loading || (existingUserCount === 0 && existingSlipsCount === 0)}
+              class="action-button cleanup-button">
+        Clean Database
+      </button>
+    </div>
+
     <div class="generator-panel">
       <div class="form-group">
-        <label for="userCount">Total number of users in the system:</label>
+        <label for="userCount">Number of users to generate:</label>
         <input
           id="userCount"
           type="number"
@@ -191,18 +274,18 @@
       </div>
 
       <div class="form-group">
-        <button on:click={generateSlips} disabled={loading || users.length === 0} class="action-button">
-          Generate receipts for each user
+        <button on:click={generateSlips} disabled={loading || existingUserCount === 0} class="action-button">
+          Generate slips for each user
         </button>
-        <div class="info-text">Receipt amount range: 10.00₽ to 5,000.00₽</div>
-        <div class="info-text">Each receipt generates {bonusPercentage}% points which are transferred up the chain</div>
+        <div class="info-text">Slip amount range: 10.00₽ to 5,000.00₽</div>
+        <div class="info-text">Each slip generates {bonusPercentage}% points which are transferred up the chain</div>
       </div>
 
       <div class="auto-fields">
         <div class="form-group">
           <div class="readonly-label" id="first-circle-label">First circle step:</div>
           <div class="readonly-value" aria-labelledby="first-circle-label">{firstCircleStep} followers</div>
-          <div class="info-text">Bonus = {bonusPercentage}% of receipt amount</div>
+          <div class="info-text">Bonus = {bonusPercentage}% of slip amount</div>
         </div>
 
         <div class="form-group">
@@ -213,7 +296,9 @@
       </div>
 
       <div class="form-group">
-        <button on:click={startRotation} disabled={loading || users.length === 0} class="action-button rotation-button">
+        <button on:click={startRotation}
+                disabled={loading || existingUserCount === 0}
+                class="action-button rotation-button">
           Enable Rotation!
         </button>
         <div class="info-text">
@@ -246,7 +331,7 @@
             <div class="user-detail">
               <h3>User #{foundUser.id}</h3>
               <div class="user-stats">
-                <div>Total receipts amount: {foundUser.total_receipts || 0}₽</div>
+                <div>Total slips amount: {foundUser.total_slips || 0}₽</div>
                 <div>Total transferred bonus: {foundUser.total_bonus || 0}₽</div>
                 <div>Total received bonus: {foundUser.received_bonus || 0}₽</div>
               </div>
@@ -258,7 +343,7 @@
               <thead>
                 <tr>
                   <th>User ID</th>
-                  <th>Receipts Amount</th>
+                  <th>Slips Amount</th>
                   <th>Transferred Bonus</th>
                   <th>Received Bonus</th>
                 </tr>
@@ -267,7 +352,7 @@
                 {#each users as user}
                   <tr>
                     <td>{user.id}</td>
-                    <td>{user.total_receipts || 0}₽</td>
+                    <td>{user.total_slips || 0}₽</td>
                     <td>{user.total_bonus || 0}₽</td>
                     <td>{user.received_bonus || 0}₽</td>
                   </tr>
@@ -394,6 +479,43 @@
     font-size: 0.85rem;
     color: #aaa;
     margin-top: 0.5rem;
+  }
+
+  .stats-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    background-color: #333;
+    padding: 1rem;
+    border-radius: 4px;
+  }
+
+  .stats-item {
+    text-align: center;
+    background-color: #3a3a3a;
+    padding: 0.75rem;
+    border-radius: 4px;
+  }
+
+  .stats-label {
+    font-size: 0.9rem;
+    color: #aaa;
+    margin-bottom: 0.4rem;
+  }
+
+  .stats-value {
+    font-size: 1.8rem;
+    font-weight: bold;
+  }
+
+  .cleanup-button {
+    background-color: #e26c4a;
+    align-self: center;
+  }
+
+  .cleanup-button:hover:not(:disabled) {
+    background-color: #d25a3a;
   }
 
   .auto-fields {

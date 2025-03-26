@@ -19,7 +19,7 @@ export async function fetchUserInfo() {
   if (!token) return;
 
   try {
-    const response = await fetch('http://localhost:8000/me', {
+    const response = await fetch('http://localhost:8000/users/me', {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -27,10 +27,13 @@ export async function fetchUserInfo() {
 
     if (response.ok) {
       const userData = await response.json();
+      // Also store the user data in localStorage to help with page refreshes
+      localStorage.setItem('userData', JSON.stringify(userData));
+
       auth.update(state => ({
         ...state,
         user: userData,
-        isAdmin: userData.is_admin,
+        isAdmin: userData.role === 'admin',
         isAuthenticated: true
       }));
       return userData;
@@ -87,6 +90,7 @@ export async function login(username, password) {
 // Logout function
 export function logout() {
   localStorage.removeItem('token');
+  localStorage.removeItem('userData');
 
   auth.set({
     token: null,
