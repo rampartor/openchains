@@ -1,4 +1,5 @@
 # Import required modules
+import random
 import time
 import typing
 from contextlib import asynccontextmanager
@@ -262,6 +263,145 @@ async def get_generator_stats(admin: User = Depends(get_admin_user)) -> Dict[str
     slip_count = await Slip.all().count()
 
     return {"user_count": user_count, "slip_count": slip_count}
+
+
+class GenerateUsersRequest(BaseModel):
+    user_count: int
+
+
+@app.post("/generator/users")
+async def generate_users(request: GenerateUsersRequest, admin: User = Depends(get_admin_user)) -> Dict[str, Any]:
+    """Generate test users for the system."""
+    # Validate input
+    if request.user_count <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_count must be greater than 0",
+        )
+
+    if request.user_count > 1000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_count must be less than or equal to 1000",
+        )
+
+    # Generate users
+    created_users = []
+    for i in range(request.user_count):
+        username = f"test_user_{int(time.time())}_{i}"
+        hashed_password = get_password_hash("password123")
+
+        # Create user with randomly generated card number
+        card_number = "".join([str(random.randint(0, 9)) for _ in range(16)])
+        user = await User.create(username=username, password=hashed_password, role="customer", card_number=card_number)
+        created_users.append(user)
+
+    return {
+        "message": f"Successfully created {len(created_users)} test users",
+        "users_created": len(created_users),
+        "users": [
+            {"id": user.id, "username": user.username, "card_number": user.card_number} for user in created_users
+        ],
+    }
+
+
+class GenerateSlipsRequest(BaseModel):
+    min_amount: float = 10.0
+    max_amount: float = 5000.0
+    bonus_percentage: float = 5.0
+    slips_per_user: int = 1
+
+
+@app.post("/generator/slips")
+async def generate_slips(request: GenerateSlipsRequest, admin: User = Depends(get_admin_user)) -> Dict[str, Any]:
+    """Generate slips for existing users."""
+    # Validate input
+    if request.min_amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="min_amount must be greater than 0",
+        )
+
+    if request.max_amount <= request.min_amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="max_amount must be greater than min_amount",
+        )
+
+    if request.slips_per_user <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="slips_per_user must be greater than 0",
+        )
+
+    # Get all users
+    users = await User.all()
+    if not users:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No users found in the system",
+        )
+
+    # Generate slips for each user
+    slips_created = 0
+    for user in users:
+        if not user.card_number:
+            continue  # Skip users without card numbers
+
+        for _ in range(request.slips_per_user):
+            # Generate random amount between min and max
+            amount = random.uniform(request.min_amount, request.max_amount)
+            amount = round(amount, 2)  # Round to 2 decimal places
+
+            # Create slip
+            await Slip.create(card_number=user.card_number, amount=amount)
+            slips_created += 1
+
+    return {
+        "message": f"Successfully created {slips_created} slips",
+        "slips_created": slips_created,
+        "users_count": len(users),
+    }
+
+
+@app.post("/generator/rotate")
+async def rotate_users(admin: User = Depends(get_admin_user)) -> Dict[str, Any]:
+    """Simulate chain rotation by randomly reassigning users in the system."""
+    # Get all users
+    users = await User.all()
+    if not users or len(users) < 6:  # Need at least 6 users to perform rotation
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Not enough users to perform rotation. Need at least 6 users.",
+        )
+
+    # For now, simulate rotation - can be expanded with actual chain logic
+    rotated_users = random.sample(list(users), min(len(users) // 3, 10))
+
+    return {
+        "message": f"Rotation completed for {len(rotated_users)} users",
+        "rotated_users": len(rotated_users),
+        "users": [{"id": user.id, "username": user.username} for user in rotated_users],
+    }
+
+
+@app.post("/generator/cleanup")
+async def cleanup_test_data(admin: User = Depends(get_admin_user)) -> Dict[str, int]:
+    """Remove all test users and slips from the database, preserving only admin users."""
+    # Get all non-admin users (consider all regular users as test users)
+    # We exclude the current admin user to ensure we don't delete ourselves
+    non_admin_users = await User.filter(role="customer")
+    user_ids = [user.id for user in non_admin_users]
+
+    # Delete all slips - since all slips are test data
+    slips_removed = await Slip.all().delete()
+
+    # Delete all non-admin users
+    users_removed = 0
+    if user_ids:
+        users_removed = await User.filter(id__in=user_ids).delete()
+
+    return {"users_removed": users_removed, "slips_removed": slips_removed}
 
 
 # Register Tortoise ORM

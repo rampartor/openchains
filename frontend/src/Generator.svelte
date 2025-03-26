@@ -81,6 +81,9 @@
         message = `Successfully generated ${data.users_created} users`;
         users = data.users || [];
         calculatePossibleChains();
+
+        // Update stats to reflect new users
+        await fetchStats();
       } else {
         error = data.detail || 'Error generating users';
 
@@ -125,6 +128,9 @@
         slipsGenerated += data.slips_created;
         message = `Generated ${data.slips_created} slips. Total: ${slipsGenerated}`;
         users = data.users || users;
+
+        // Update stats to reflect new slips
+        await fetchStats();
       } else {
         error = data.detail || 'Error generating slips';
 
@@ -162,6 +168,9 @@
       if (response.ok) {
         message = `Rotation completed. ${data.rotated_users || 0} users rotated`;
         users = data.users || users;
+
+        // Update stats after rotation (in case it affects counts)
+        await fetchStats();
       } else {
         error = data.detail || 'Error performing rotation';
 
