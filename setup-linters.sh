@@ -15,5 +15,5 @@ cd frontend && yarn install
 
 echo "Setup complete! Linters and code-style checkers have been installed as git pre-commit hooks."
 echo "You can run them manually with:"
-echo "  - For Python: poetry run black backend/ && poetry run isort backend/ && poetry run flake8 backend/"
+echo "  - For Python: poetry run black backend/ && poetry run isort backend/ && poetry run flake8 backend/ && poetry run wemake-python-styleguide backend/"
 echo "  - For JavaScript/Svelte: cd frontend && yarn lint && yarn format"
